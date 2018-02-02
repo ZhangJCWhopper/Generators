@@ -24,6 +24,7 @@ class PreparePLDA(object):
 		self.batch_size = 1
 		self.target_ark_file = "~/workspace/generated_ivectors.ark"
 		self.origin_ark_file = "~/workspace/clipped_ivectors.ark"
+		self.spk2utt_file = "~/workspace/spk2utt"
 
 	def generate_samples(self, ckpt_dir):
 		checkpoint = tf.train.latest_checkpoint(ckpt_dir)
@@ -51,48 +52,55 @@ class PreparePLDA(object):
 
 		cursor = 0
 
-		with tf.Session() as sess, open(self.target_ark_file, "w") as out, open(self.origin_ark_file, "w") as origin_out:
-			sess.run(tf.global_variables_initializer())
-			while cursor < len(spks):
-				#read data
-				batch = short_ivs[cursor: cursor+self.batch_size]
-				name = spks[cursor]
-				#generate
-				existed_res = []
-				for i in range(self.turn):
-					z = np.random.normal(.0, self.noise_cov, size=[self.batch_size, self.noise_dim])
-					res = sess.run(gened_ivs, feed_dict={short_iv_holder: batch, noise_holder: z})
-					existed_res.append(res[0])
-				#compute average
-				final = []
-				for j in range(self.iv_dim):
-					temp = .0
+		with tf.Session() as sess:
+			with open(self.target_ark_file, "w") as out, open(self.origin_ark_file, "w") as origin_out, open(self.spk2utt_file, "w") as spk2utt_out:
+				sess.run(tf.global_variables_initializer())
+				while cursor < len(spks):
+					#read data
+					batch = short_ivs[cursor: cursor+self.batch_size]
+					name = spks[cursor]
+					#generate
+					existed_res = []
 					for i in range(self.turn):
-						temp += existed_res[i][j]
+						z = np.random.normal(.0, self.noise_cov, size=[self.batch_size, self.noise_dim])
+						res = sess.run(gened_ivs, feed_dict={short_iv_holder: batch, noise_holder: z})
+						existed_res.append(res[0])
+					#compute average
+					final = []
+					for j in range(self.iv_dim):
+						temp = .0
+						for i in range(self.turn):
+							temp += existed_res[i][j]
 
-					temp /= 3.0
-					final.append(np.float32(temp))
-				#write generated
-				str_buff = name + "  [ "
-				for d in final:
-					str_buff += (str(d) + " ")
-				str_buff += "]\n"
-				out.write(str_buff)
-				#write original
-				str_buff = name + "  [ "
-				for d in batch[0]:
-					str_buff += (str(d) + " ")
-				str_buff += "]\n"
-				origin_out.write(str_buff)
+						temp /= 3.0
+						final.append(np.float32(temp))
+					#write generated
+					str_buff = name + "  [ "
+					for d in final:
+						str_buff += (str(d) + " ")
+					str_buff += "]\n"
+					out.write(str_buff)
+					#write original
+					str_buff = name + "  [ "
+					for d in batch[0]:
+						str_buff += (str(d) + " ")
+					str_buff += "]\n"
+					origin_out.write(str_buff)
+					#write spk2utt
+					str_buff = "%s %s\n" %(name, name)
+					spk2utt_out.write(str_buff)
 
-				cursor += 1
+					cursor += 1
+		
+		print "Finished!"
 
 	def kaldi_preprocess(self):
-		command = []
 		#copy-feats
-
+		command = ["copy-feats"]
+		command += ["ark:%s" % self.target_ark_file, "ark,t,scp:%s,%s" %(self.target_ark_file, self.target_ark_file.replace(".ark", ".scp"))]
+		call(command)
 		#i-vector length normalization and get num-utts
-
+		command = []
 		#adpat train plda model
 
 		#compute plad scores
