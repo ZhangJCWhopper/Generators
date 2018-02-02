@@ -18,14 +18,23 @@ class IvectorLoader(object):
 		self.short_ivs_dir = kwargs.get("short_ivs_dir", "ivectors")
 		self.long_ivs_dir = kwargs.get("long_ivs_dir", "long_ivectors")
 		self.batch_size = kwargs.get("batch_size", 128)
+		task = kwargs.get("task", "train")
+		gender = kwargs.get("gender", "male")
+
 		print("Attention: this is for male speakers in training set,\nAnd you know what, WE HAVE LABELS")
 		print("Load short utt i-vectors from "+self.short_ivs_dir)
 		print("Load long utt i-vectors from " + self.long_ivs_dir)
 		print("Batch size " + str(self.batch_size))
-		def filter(target):
-			if target.endswith(".ark"):
-				if "test" in target and "_male." in target:
-					return True
+		def filter(target, task=task, gender=gender):
+			if gender == "male":
+				ged = "_male."
+			elif gender == "female":
+				ged = "_female"
+			else:
+				ged = "."
+
+			if target.endswith(".ark") and task in target and ged in target:
+				return True
 			return False
 
 		#storage: file id : [ short iv1, short iv2......]
@@ -102,15 +111,22 @@ class IvectorLoader(object):
 		print("Whole set size " + str(len(short_utt_ivs)))
 		return np.array(short_utt_ivs), np.array(long_utt_ivs)
 
-	def make_tfrecord(self, record_file="train.tfrecord_male_labelled"):
+	def make_tfrecord(self, record_file="train.tfrecord_male_labelled", fisher=0):
 		#one utt, one file
 		import tensorflow as tf
 		count = 0
 		writer = tf.python_io.TFRecordWriter(record_file)
+		pattern = re.compile(r'\d+[m|f]')
 		for utt_name in self.file_list:
+			speaker_label = utt_name[:min(utt_name.find('-'), utt_name.find('_'))]
+			#Sometimes we do not need fisher data
+			if fisher == 0:
+				print "No fisher, please!"
+				if pattern.match(speaker_label):
+					continue
 			short_ivs_list = self.file2short_ivs[utt_name]			
 			long_iv = self.file2long_ivs[utt_name]
-			speaker_label = utt_name[:min(utt_name.find('-'), utt_name.find('_'))]
+
 			if (speaker_label == ""):
 				print("Error, NULL speaker label!")
 			for short_iv in short_ivs_list:
@@ -127,3 +143,16 @@ class IvectorLoader(object):
 		writer.close()
 		call(["mv", record_file, record_file+str(count)])
 		print("write done %d samples"%(count,))
+
+	def get_eval_basis(self):
+		#spk_id, picked short i-v, long i-v
+		carrier = []
+		import random
+		for utt_name in self.file_list:
+			short_ivs_list = self.file2short_ivs[utt_name]
+			#randint the field is [a, b]
+			picked = random.randint(0, len(short_ivs_list)-1)
+			pack = [utt_name, short_ivs_list[picked], self.file2long_ivs[utt_name]]
+			carrier.append(pack)
+
+		return carrier
