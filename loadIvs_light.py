@@ -1,3 +1,4 @@
+from __future__ import print_function
 import os
 import numpy as np
 import re
@@ -6,34 +7,15 @@ from subprocess import call
 class IvectorLoader(object):
 	"""
 	docstring for IvectorLoader
-	this is for load train male speakers' ivectors 
-	I forget all
-	Hahahahah
-	file: utterance file
-	
+	Light version, load from a given file
 	"""
 	def __init__(self, **kwargs):
 
 		super(IvectorLoader, self).__init__()
 		self.short_ivs_file = kwargs.get("short_ivs_file", "ivectors.ark")
 
-		task = kwargs.get("task", "train")
-		gender = kwargs.get("gender", "male")
-
 		print("Attention: this is light version")
 		print("Load short utt i-vectors from "+self.short_ivs_file)
-		
-		def filter(target, task=task, gender=gender):
-			if gender == "male":
-				ged = "_male."
-			elif gender == "female":
-				ged = "_female"
-			else:
-				ged = "."
-
-			if target.endswith(".ark") and task in target and ged in target:
-				return True
-			return False
 
 		short_ivs_files = [self.short_ivs_file] 
 		self.carrier = []
@@ -57,5 +39,9 @@ class IvectorLoader(object):
 
 	def get_eval_basis(self):
 		#spk_id, picked short i-v, long i-v
-
 		return self.carrier
+	def get_ivs(self):
+		return [one[1] for one in self.carrier]
+
+	def get_names(self):
+		return [one[0] for one in self.carrier]
